@@ -3,19 +3,22 @@ jdk: oraclejdk8
 
 android:
   components:
-        - tools
-        - tools
-        - platform-tools
-        - build-tools-25.1.0
-        - android-25
-        - extra-android-m2repository
-        - extra-android-support
-        - sys-img-armeabi-v7a-android-21
+		- tools # to get the new `repository-11.xml`
+    - tools # to install Android SDK tools 25+, latest, cannot get more granular control than this
+    # See https://github.com/travis-ci/travis-ci/issues/6040#issuecomment-219367943 for more
+    # details.
+    - platform-tools #latest
+    - build-tools-24.0.1
+    - android-25
+    - extra-android-m2repository
+    - extra-android-support
+    - sys-img-armeabi-v7a-android-21
   licenses:
-      - 'android-sdk-license-.+'
+    - 'android-sdk-license-.+'
 
-    # Emulator Management: Create, Start and Wait
+# Emulator Management: Create, Start and Wait
 before_script:
+  - echo yes | android update sdk --filter extra-android-m2repository --no-ui --force > /dev/null
   - echo no | android create avd --force -n test -t android-21 --abi armeabi-v7a
   - emulator -avd test -no-audio -no-window &
   - android-wait-for-emulator
