@@ -10,6 +10,7 @@ test:
         background: true
         parallel: true
     - circle-android wait-for-boot
+    - sleep 30
   override:
     - wget http://imgur.com/tools/imgurbash.sh
     - chmod a+x imgurbash.sh
