@@ -15,9 +15,9 @@ test:
     - ./gradlew build
     - ./gradlew test
     - ./gradlew assembleDebugAndroidTest
-    - fb-adb rcmd screencap -p > $CIRCLE_ARTIFACTS/screen-before-82-$(date +"%T").png
-    - fb-adb shell input keyevent 82
-    - fb-adb rcmd screencap -p > $CIRCLE_ARTIFACTS/screen-after-82-$(date +"%T").png
+    - adb shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > screen-before-82-$(date +"%T").png
+    - adb shell input keyevent 82
+    - adb shell screencap -p | perl -pe 's/\x0D\x0A/\x0A/g' > screen-post-82-$(date +"%T").png
     - ./gradlew connectedCheck
 
   post:
