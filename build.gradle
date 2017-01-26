@@ -14,6 +14,8 @@ allprojects {
 }
 
 ext {
+  // Disable pre-dexing when gradle called with -PdisablePreDex
+  preDexLibs = !project.hasProperty('disablePreDex')
   extraVersion = 40
   buildNumber = Integer.toString(extraVersion)
   buildToolsVersion = '24.0.1'
@@ -50,6 +52,8 @@ subprojects {
     def isJavaLibrary = "org.gradle.api.plugins.JavaPlugin".equals(plugin.class.name)
 
     if (isAndroidLibrary || isAndroidApp) {
+      // Disable pre-dexing when gradle called with -PdisablePreDex
+      project.android.dexOptions.preDexLibraries = rootProject.ext.preDexLibs
       // Enable code coverage for debug builds only if we are not running inside the IDE,
       // since enabling coverage reports breaks the method parameter resolution in the IDE
       // debugger.

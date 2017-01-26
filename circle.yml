@@ -3,6 +3,7 @@ machine:
   environment:
     # Disable emulator audio
     QEMU_AUDIO_DRV: none
+    ADB_INSTALL_TIMEOUT: "10"
 
 test:
   pre:
@@ -12,21 +13,18 @@ test:
     - circle-android wait-for-boot
     - sleep 30
   override:
-    - wget http://imgur.com/tools/imgurbash.sh
-    - chmod a+x imgurbash.sh
     - ./gradlew lint
     - ./gradlew build
     - ./gradlew test
     - ./gradlew assembleDebugAndroidTest
-    - adb shell screencap -p | sed 's/\r$//' > before-82.png
-    - ./imgurbash.sh before-82.png
+    - adb shell screencap -p | sed 's/\r$//' > $CIRCLE_ARTIFACTS/before-82.png
     - adb shell input keyevent 82
-    - adb shell screencap -p | sed 's/\r$//' > post-82.png
-    - ./imgurbash.sh post-82.png
+    - adb shell screencap -p | sed 's/\r$//' > $CIRCLE_ARTIFACTS/post-82.png
     - ./gradlew connectedCheck -PdisablePreDex;
-    - adb shell screencap -p | sed 's/\r$//' > post-test.png
-    - ./imgurbash.sh post-test.png
+    - adb shell screencap -p | sed 's/\r$//' > $CIRCLE_ARTIFACTS/post-test.png
 
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/
     - find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;
+    - find . -type f -regex ".*/build/androidTest-results/.*xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;
+
