@@ -1,14 +1,14 @@
 test:
-	pre:
-	# emulator startup need some minutes that's why start it before first build/test steps for build speed up
-	  - emulator -avd circleci-android22 -no-audio -no-window:
-			background: true
-			parallel: true
+  pre:
+  # emulator startup need some minutes that's why start it before first build/test steps for build speed up
+    - emulator -avd circleci-android22 -no-audio -no-window:
+      background: true
+      parallel: true
   override:
-		- ./gradlew lint
-		- ./gradlew test
-		- ./gradlew connectedCheck
-		
+    - ./gradlew lint
+    - ./gradlew test
+    - ./gradlew connectedCheck
+    
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/
     - find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;
