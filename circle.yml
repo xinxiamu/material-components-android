@@ -1,19 +1,19 @@
 
 machine:
   environment:
-		# Disable emulator audio
+    # Disable emulator audio
     QEMU_AUDIO_DRV: none
 
 test:
-  pre:
-  # emulator startup need some minutes that's why start it before first build/test steps for build speed up
-		- emulator -avd circleci-android24 -no-window:
-		    background: true
-		    parallel: true
-	  - circle-android wait-for-boot
+  pre: 
+    # emulator startup need some minutes that's why start it before first build/test steps for build speed up
+    - emulator -avd circleci-android24 -no-window:
+        background: true
+        parallel: true
+    - circle-android wait-for-boot
   override:
     - ./gradlew lint
-		- ./gradlew build
+    - ./gradlew build
     - ./gradlew test
     - ./gradlew connectedCheck
     
