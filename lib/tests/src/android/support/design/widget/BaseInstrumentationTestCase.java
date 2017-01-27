@@ -19,6 +19,9 @@ package android.support.design.widget;
 import android.app.Activity;
 import android.support.test.rule.ActivityTestRule;
 import android.support.test.runner.AndroidJUnit4;
+import android.support.v7.app.AppCompatActivity;
+import android.view.WindowManager;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.runner.RunWith;
 
@@ -28,5 +31,18 @@ public abstract class BaseInstrumentationTestCase<A extends Activity> {
 
   protected BaseInstrumentationTestCase(Class<A> activityClass) {
     mActivityTestRule = new ActivityTestRule<A>(activityClass);
+  }
+
+  @Before
+  public void wakeUpDevice() {
+    final A activity = mActivityTestRule.getActivity();
+    Runnable wakeUpDevice = new Runnable() {
+      public void run() {
+        activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      }
+    };
+    activity.runOnUiThread(wakeUpDevice);
   }
 }
