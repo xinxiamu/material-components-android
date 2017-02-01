@@ -11,6 +11,7 @@ test:
     - echo y | android update sdk --no-ui --all --filter extra-android-support
     - echo y | android update sdk --no-ui --all --filter android25
     - echo y | android update sdk --no-ui --all --filter build-tools-24.0.1
+    - android list targets
     - echo no | android create avd --force -n test -t android-19 --abi armeabi-v7a
     - emulator -avd circleci-android24 -no-audio -no-window:
         background: true
