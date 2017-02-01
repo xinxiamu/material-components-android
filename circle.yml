@@ -13,19 +13,18 @@ test:
     - echo y | android update sdk --no-ui --all --filter "android-$ANDROID_EMULATOR_API_LEVEL"
     - echo y | android update sdk --no-ui --all --filter build-tools-24.0.1
     - echo y | android update sdk --no-ui --all --filter "sys-img-armeabi-v7a-android-$ANDROID_EMULATOR_API_LEVEL"
-    - android list targets
-    #- echo no | android create avd --force -n test -t android-19 --abi armeabi-v7a
-    #- emulator -avd test -no-audio -no-window:
-    #    background: true
-    #    parallel: true
-    #- circle-android wait-for-boot
+    - echo no | android create avd --force -n test -t android-19 --abi armeabi-v7a
+    - emulator -avd test -no-audio -no-window:
+        background: true
+        parallel: true
+    - circle-android wait-for-boot
 
   override:
-    #- ./gradlew lint build test assembleAndroidTest -PdisablePreDex; --console=plain
-    #- adb shell input keyevent 82
+    - ./gradlew lint build test assembleAndroidTest -PdisablePreDex; --console=plain
+    - adb shell input keyevent 82
     # Avoid having it lock itself again.
-    #- adb shell svc power stayon true
-    #- ./gradlew connectedCheck --console=plain
+    - adb shell svc power stayon true
+    - ./gradlew connectedCheck --console=plain
 
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/
