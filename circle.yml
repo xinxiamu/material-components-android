@@ -1,28 +1,29 @@
 
 machine:
   environment:
+    QEMU_AUDIO_DRV: none
     TERM: "dumb"
     ADB_INSTALL_TIMEOUT: "10"
-    GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx2048m -XX:+HeapDumpOnOutOfMemoryError"'
 
 test:
   pre:
-    - echo y | android update sdk --no-ui --all --filter extra-android-m2repository,extra-android-support
+    - echo y | android update sdk --no-ui --all --filter extra-android-m2repository
+    - echo y | android update sdk --no-ui --all --filter extra-android-support
+    - echo y | android update sdk --no-ui --all --filter android25
     - echo y | android update sdk --no-ui --all --filter build-tools-24.0.1
-    - emulator -avd circleci-android22 -no-window:
+    - emulator -avd circleci-android24 -no-audio -no-window:
         background: true
         parallel: true
     - circle-android wait-for-boot
     # Paranoically wait for boot
     - sleep 30
-    # Unlock the device
+
+  override:
+    - ./gradlew lint build test assembleAndroidTest -PdisablePreDex; --console=plain
     - adb shell input keyevent 82
     # Avoid having it lock itself again.
     - adb shell svc power stayon true
-
-  override:
-    - ./gradlew lint build test assembleAndroidTest -PdisablePreDex;
-    - ./gradlew connectedCheck -PdisablePreDex;
+    - ./gradlew connectedCheck --console=plain
 
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/
