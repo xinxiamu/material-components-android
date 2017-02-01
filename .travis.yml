@@ -20,13 +20,14 @@ android:
 before_script:
   - echo y | android update sdk --no-ui --all --filter extra-android-m2repository
   - echo y | android update sdk --no-ui --all --filter extra-android-support
-  - echo no | android create avd --force -n test -t android-19 --abi armeabi-v7a
-  - emulator -avd test -no-audio -no-window &
-  - android-wait-for-emulator
+  #- echo no | android create avd --force -n test -t android-19 --abi armeabi-v7a
+  - android list targets
+  #- emulator -avd test -no-audio -no-window &
+  #- android-wait-for-emulator
   # Unlock the device
-  - adb shell input keyevent 82
+  #- adb shell input keyevent 82
   # Avoid having it lock itself again.
-  - adb shell svc power stayon true
+  #- adb shell svc power stayon true
 
 script:
   - ./gradlew build lint test assembleAndroidTest -PdisablePreDex;
