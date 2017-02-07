@@ -2,7 +2,7 @@ language: android
 jdk: oraclejdk8
 
 env:
-  - ANDROID_EMULATOR_API_LEVEL=20
+  - ANDROID_EMULATOR_API_LEVEL=21
 
 android:
   components:
