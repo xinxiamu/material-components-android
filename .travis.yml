@@ -2,7 +2,12 @@ language: android
 jdk: oraclejdk8
 
 env:
+  - ANDROID_EMULATOR_API_LEVEL=14
+  - ANDROID_EMULATOR_API_LEVEL=16
   - ANDROID_EMULATOR_API_LEVEL=19
+  - ANDROID_EMULATOR_API_LEVEL=21
+  - ANDROID_EMULATOR_API_LEVEL=23
+  - ANDROID_EMULATOR_API_LEVEL=25
 
 android:
   components:
@@ -15,7 +20,6 @@ android:
     - android-25
     - extra-android-m2repository
     - extra-android-support
-    - sys-img-armeabi-v7a-android-19
   licenses:
     - 'android-sdk-license-.+'
 
