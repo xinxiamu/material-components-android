@@ -2,7 +2,7 @@ machine:
   environment:
     QEMU_AUDIO_DRV: none
     TERM: "dumb"
-    ANDROID_EMULATOR_API_LEVEL: 19
+    ANDROID_EMULATOR_API_LEVEL: 20
     ADB_INSTALL_TIMEOUT: "10"
 
 test:
