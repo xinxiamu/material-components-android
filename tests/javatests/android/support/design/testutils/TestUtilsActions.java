@@ -20,6 +20,7 @@ import static android.support.test.espresso.matcher.ViewMatchers.isAssignableFro
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayingAtLeast;
 import static android.support.test.espresso.matcher.ViewMatchers.isRoot;
+import static org.hamcrest.Matchers.any;
 
 import android.graphics.drawable.Drawable;
 import android.os.Parcelable;
@@ -29,6 +30,7 @@ import android.support.annotation.Nullable;
 import android.support.design.widget.CollapsingToolbarLayout;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.TabLayout;
+import android.support.design.widget.expandable.ExpandableWidget;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.TextViewCompat;
 import android.util.SparseArray;
@@ -354,6 +356,25 @@ public class TestUtilsActions {
         nv.getMenu().clear();
         nv.inflateMenu(menuResId);
         uiController.loopMainThreadUntilIdle();
+      }
+    };
+  }
+
+  public static ViewAction setExpanded(final boolean expanded) {
+    return new ViewAction() {
+      @Override
+      public Matcher<View> getConstraints() {
+        return any(View.class);
+      }
+
+      @Override
+      public String getDescription() {
+        return "set expanded";
+      }
+
+      @Override
+      public void perform(UiController uiController, View view) {
+        ((ExpandableWidget) view).setExpanded(expanded);
       }
     };
   }

@@ -16,8 +16,8 @@
 
 package android.support.design.widget;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
+import static android.support.design.widget.IndicatorViewController.COUNTER_INDEX;
+
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.ColorStateList;
@@ -30,16 +30,20 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.DrawableContainer;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
+import android.support.annotation.IntDef;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
 import android.support.annotation.StyleRes;
 import android.support.annotation.VisibleForTesting;
 import android.support.design.R;
+import android.support.design.animation.AnimationUtils;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.view.AbsSavedState;
@@ -47,7 +51,6 @@ import android.support.v4.view.AccessibilityDelegateCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.accessibility.AccessibilityNodeInfoCompat;
-import android.support.v4.widget.Space;
 import android.support.v4.widget.TextViewCompat;
 import android.support.v7.content.res.AppCompatResources;
 import android.support.v7.widget.AppCompatDrawableManager;
@@ -65,7 +68,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.animation.AccelerateInterpolator;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -73,22 +75,29 @@ import android.widget.TextView;
 
 /**
  * Layout which wraps an {@link android.widget.EditText} (or descendant) to show a floating label
- * when the hint is hidden due to the user inputting text.
+ * when the hint is hidden while the user inputs text.
  *
- * <p>Also supports showing an error via {@link #setErrorEnabled(boolean)} and {@link
- * #setError(CharSequence)}, and a character counter via {@link #setCounterEnabled(boolean)}.
+ * <p>Also supports:
  *
- * <p>Password visibility toggling is also supported via the {@link
- * #setPasswordVisibilityToggleEnabled(boolean)} API and related attribute. If enabled, a button is
- * displayed to toggle between the password being displayed as plain-text or disguised, when your
- * EditText is set to display a password.
+ * <ul>
+ *   <li>Showing an error via {@link #setErrorEnabled(boolean)} and {@link #setError(CharSequence)}
+ *   <li>Showing helper text via {@link #setHelperTextEnabled(boolean)} and {@link
+ *       #setHelperText(CharSequence)}
+ *   <li>Showing a character counter via {@link #setCounterEnabled(boolean)} and {@link
+ *       #setCounterMaxLength(int)}
+ *   <li>Password visibility toggling via the {@link #setPasswordVisibilityToggleEnabled(boolean)}
+ *       API and related attribute. If enabled, a button is displayed to toggle between the password
+ *       being displayed as plain-text or disguised, when your EditText is set to display a
+ *       password.
+ *       <p><strong>Note:</strong> When using the password toggle functionality, the 'end' compound
+ *       drawable of the EditText will be overridden while the toggle is enabled. To ensure that any
+ *       existing drawables are restored correctly, you should set those compound drawables
+ *       relatively (start/end), opposed to absolutely (left/right).
+ * </ul>
  *
- * <p><strong>Note:</strong> When using the password toggle functionality, the 'end' compound
- * drawable of the EditText will be overridden while the toggle is enabled. To ensure that any
- * existing drawables are restored correctly, you should set those compound drawables relatively
- * (start/end), opposed to absolutely (left/right). The {@link TextInputEditText} class is provided
- * to be used as a child of this layout. Using TextInputEditText allows TextInputLayout greater
- * control over the visual aspects of any text input. An example usage is as so:
+ * <p>The {@link TextInputEditText} class is provided to be used as a child of this layout. Using
+ * TextInputEditText allows TextInputLayout greater control over the visual aspects of any text
+ * input. An example usage is as so:
  *
  * <pre>
  * &lt;android.support.design.widget.TextInputLayout
@@ -111,7 +120,9 @@ import android.widget.TextView;
  */
 public class TextInputLayout extends LinearLayout {
 
-  private static final int ANIMATION_DURATION = 200;
+  /** Duration for the label's scale up and down animations. */
+  private static final int LABEL_SCALE_ANIMATION_DURATION = 167;
+
   private static final int INVALID_MAX_LENGTH = -1;
 
   private static final String LOG_TAG = "TextInputLayout";
@@ -119,29 +130,41 @@ public class TextInputLayout extends LinearLayout {
   private final FrameLayout mInputFrame;
   EditText mEditText;
 
+  private final IndicatorViewController indicatorViewController = new IndicatorViewController(this);
+
+  boolean mCounterEnabled;
+  private int mCounterMaxLength;
+  private boolean mCounterOverflowed;
+  private TextView mCounterView;
+  private final int mCounterOverflowTextAppearance;
+  private final int mCounterTextAppearance;
+
   private boolean mHintEnabled;
   private CharSequence mHint;
 
+  private GradientDrawable mBoxBackground;
+  private final int mBoxPaddingOffsetPx;
+  @BoxBackgroundMode private int mBoxBackgroundMode;
+  private float mBoxCornerRadius;
+  private int mBoxStrokeWidth;
+  private ColorStateList mBoxStrokeColor;
+  private ColorStateList mBoxBackgroundColor;
+  private Drawable mEditTextOriginalDrawable;
+
+  /**
+   * Values for box background mode. There is either a filled background, an outline background, or
+   * no background.
+   */
+  @IntDef({BOX_BACKGROUND_NONE, BOX_BACKGROUND_FILLED, BOX_BACKGROUND_OUTLINE})
+  public @interface BoxBackgroundMode {}
+
+  public static final int BOX_BACKGROUND_NONE = 0;
+  public static final int BOX_BACKGROUND_FILLED = 1;
+  public static final int BOX_BACKGROUND_OUTLINE = 2;
+
   private Paint mTmpPaint;
   private final Rect mTmpRect = new Rect();
-
-  private LinearLayout mIndicatorArea;
-  private int mIndicatorsAdded;
-
   private Typeface mTypeface;
-
-  private boolean mErrorEnabled;
-  TextView mErrorView;
-  private int mErrorTextAppearance;
-  private boolean mErrorShown;
-  private CharSequence mError;
-
-  boolean mCounterEnabled;
-  private TextView mCounterView;
-  private int mCounterMaxLength;
-  private int mCounterTextAppearance;
-  private int mCounterOverflowTextAppearance;
-  private boolean mCounterOverflowed;
 
   private boolean mPasswordToggleEnabled;
   private Drawable mPasswordToggleDrawable;
@@ -194,8 +217,8 @@ public class TextInputLayout extends LinearLayout {
     mInputFrame.setAddStatesFromChildren(true);
     addView(mInputFrame);
 
-    mCollapsingTextHelper.setTextSizeInterpolator(AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR);
-    mCollapsingTextHelper.setPositionInterpolator(new AccelerateInterpolator());
+    mCollapsingTextHelper.setTextSizeInterpolator(AnimationUtils.LINEAR_INTERPOLATOR);
+    mCollapsingTextHelper.setPositionInterpolator(AnimationUtils.LINEAR_INTERPOLATOR);
     mCollapsingTextHelper.setCollapsedTextGravity(Gravity.TOP | GravityCompat.START);
 
     final TintTypedArray a =
@@ -205,6 +228,14 @@ public class TextInputLayout extends LinearLayout {
             R.styleable.TextInputLayout,
             defStyleAttr,
             R.style.Widget_Design_TextInputLayout);
+
+    @BoxBackgroundMode
+    final int boxBackgroundMode =
+        a.getInt(R.styleable.TextInputLayout_boxBackgroundMode, BOX_BACKGROUND_NONE);
+    setBoxBackgroundMode(boxBackgroundMode);
+    mBoxPaddingOffsetPx =
+        context.getResources().getDimensionPixelOffset(R.dimen.design_textinput_box_offset);
+
     mHintEnabled = a.getBoolean(R.styleable.TextInputLayout_hintEnabled, true);
     setHint(a.getText(R.styleable.TextInputLayout_android_hint));
     mHintAnimationEnabled = a.getBoolean(R.styleable.TextInputLayout_hintAnimationEnabled, true);
@@ -220,8 +251,14 @@ public class TextInputLayout extends LinearLayout {
       setHintTextAppearance(a.getResourceId(R.styleable.TextInputLayout_hintTextAppearance, 0));
     }
 
-    mErrorTextAppearance = a.getResourceId(R.styleable.TextInputLayout_errorTextAppearance, 0);
+    final int mErrorTextAppearance =
+        a.getResourceId(R.styleable.TextInputLayout_errorTextAppearance, 0);
     final boolean errorEnabled = a.getBoolean(R.styleable.TextInputLayout_errorEnabled, false);
+
+    final int mHelperTextTextAppearance =
+        a.getResourceId(R.styleable.TextInputLayout_helperTextTextAppearance, 0);
+    final boolean helperTextEnabled =
+        a.getBoolean(R.styleable.TextInputLayout_helperTextEnabled, false);
 
     final boolean counterEnabled = a.getBoolean(R.styleable.TextInputLayout_counterEnabled, false);
     setCounterMaxLength(a.getInt(R.styleable.TextInputLayout_counterMaxLength, INVALID_MAX_LENGTH));
@@ -246,8 +283,12 @@ public class TextInputLayout extends LinearLayout {
 
     a.recycle();
 
+    setHelperTextEnabled(helperTextEnabled);
+    setHelperTextTextAppearance(mHelperTextTextAppearance);
     setErrorEnabled(errorEnabled);
+    setErrorTextAppearance(mErrorTextAppearance);
     setCounterEnabled(counterEnabled);
+
     applyPasswordToggleTint();
 
     if (ViewCompat.getImportantForAccessibility(this)
@@ -281,6 +322,19 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
+   * Set the mode for the box's background (filled, outline, or none).
+   *
+   * @param boxBackgroundMode the box's background mode.
+   */
+  public void setBoxBackgroundMode(@BoxBackgroundMode int boxBackgroundMode) {
+    if (boxBackgroundMode == mBoxBackgroundMode) {
+      return;
+    }
+    mBoxBackgroundMode = boxBackgroundMode;
+    mBoxBackground = mBoxBackgroundMode != BOX_BACKGROUND_NONE ? new GradientDrawable() : null;
+  }
+
+  /**
    * Set the typeface to use for the hint and any label views (such as counter and error views).
    *
    * @param typeface typeface to use, or {@code null} to use the default.
@@ -291,11 +345,10 @@ public class TextInputLayout extends LinearLayout {
       mTypeface = typeface;
 
       mCollapsingTextHelper.setTypefaces(typeface);
+      indicatorViewController.setTypefaces(typeface);
+
       if (mCounterView != null) {
         mCounterView.setTypeface(typeface);
-      }
-      if (mErrorView != null) {
-        mErrorView.setTypeface(typeface);
       }
     }
   }
@@ -303,7 +356,7 @@ public class TextInputLayout extends LinearLayout {
   /**
    * Returns the typeface used for the hint and any label views (such as counter and error views).
    */
-  @NonNull
+  @Nullable
   public Typeface getTypeface() {
     return mTypeface;
   }
@@ -325,7 +378,7 @@ public class TextInputLayout extends LinearLayout {
 
     final boolean hasPasswordTransformation = hasPasswordTransformation();
 
-    // Use the EditText's typeface, and it's text size for our expanded text
+    // Use the EditText's typeface, and its text size for our expanded text.
     if (!hasPasswordTransformation) {
       // We don't want a monospace font just because we have a password field
       mCollapsingTextHelper.setTypefaces(mEditText.getTypeface());
@@ -371,9 +424,7 @@ public class TextInputLayout extends LinearLayout {
       updateCounter(mEditText.getText().length());
     }
 
-    if (mIndicatorArea != null) {
-      adjustIndicatorPadding();
-    }
+    indicatorViewController.adjustIndicatorPadding();
 
     updatePasswordToggleView();
 
@@ -383,7 +434,7 @@ public class TextInputLayout extends LinearLayout {
 
   private void updateInputLayoutMargins() {
     // Create/update the LayoutParams so that we can add enough top margin
-    // to the EditText so make room for the label
+    // to the EditText to make room for the label.
     final LayoutParams lp = (LayoutParams) mInputFrame.getLayoutParams();
     final int newTopMargin;
 
@@ -408,17 +459,19 @@ public class TextInputLayout extends LinearLayout {
     updateLabelState(animate, false);
   }
 
-  void updateLabelState(boolean animate, boolean force) {
+  private void updateLabelState(boolean animate, boolean force) {
     final boolean isEnabled = isEnabled();
     final boolean hasText = mEditText != null && !TextUtils.isEmpty(mEditText.getText());
     final boolean isFocused = arrayContains(getDrawableState(), android.R.attr.state_focused);
-    final boolean isErrorShowing = !TextUtils.isEmpty(getError());
+    final boolean errorShouldBeShown = indicatorViewController.errorShouldBeShown();
 
     if (mDefaultTextColor != null) {
       mCollapsingTextHelper.setExpandedTextColor(mDefaultTextColor);
     }
 
-    if (isEnabled && mCounterOverflowed && mCounterView != null) {
+    if (isEnabled && errorShouldBeShown) {
+      mCollapsingTextHelper.setCollapsedTextColor(indicatorViewController.getErrorViewTextColors());
+    } else if (isEnabled && mCounterOverflowed && mCounterView != null) {
       mCollapsingTextHelper.setCollapsedTextColor(mCounterView.getTextColors());
     } else if (isEnabled && isFocused && mFocusedTextColor != null) {
       mCollapsingTextHelper.setCollapsedTextColor(mFocusedTextColor);
@@ -426,7 +479,7 @@ public class TextInputLayout extends LinearLayout {
       mCollapsingTextHelper.setCollapsedTextColor(mDefaultTextColor);
     }
 
-    if (hasText || (isEnabled() && (isFocused || isErrorShowing))) {
+    if (hasText || (isEnabled() && (isFocused || errorShouldBeShown))) {
       // We should be showing the label so do so if it isn't already
       if (force || mHintExpanded) {
         collapseHint(animate);
@@ -542,48 +595,6 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private void addIndicator(TextView indicator, int index) {
-    if (mIndicatorArea == null) {
-      mIndicatorArea = new LinearLayout(getContext());
-      mIndicatorArea.setOrientation(LinearLayout.HORIZONTAL);
-      addView(
-          mIndicatorArea,
-          LinearLayout.LayoutParams.MATCH_PARENT,
-          LinearLayout.LayoutParams.WRAP_CONTENT);
-
-      // Add a flexible spacer in the middle so that the left/right views stay pinned
-      final Space spacer = new Space(getContext());
-      final LinearLayout.LayoutParams spacerLp = new LinearLayout.LayoutParams(0, 0, 1f);
-      mIndicatorArea.addView(spacer, spacerLp);
-
-      if (mEditText != null) {
-        adjustIndicatorPadding();
-      }
-    }
-    mIndicatorArea.setVisibility(View.VISIBLE);
-    mIndicatorArea.addView(indicator, index);
-    mIndicatorsAdded++;
-  }
-
-  private void adjustIndicatorPadding() {
-    // Add padding to the error and character counter so that they match the EditText
-    ViewCompat.setPaddingRelative(
-        mIndicatorArea,
-        ViewCompat.getPaddingStart(mEditText),
-        0,
-        ViewCompat.getPaddingEnd(mEditText),
-        mEditText.getPaddingBottom());
-  }
-
-  private void removeIndicator(TextView indicator) {
-    if (mIndicatorArea != null) {
-      mIndicatorArea.removeView(indicator);
-      if (--mIndicatorsAdded == 0) {
-        mIndicatorArea.setVisibility(View.GONE);
-      }
-    }
-  }
-
   /**
    * Whether the error functionality is enabled or not in this layout. Enabling this functionality
    * before setting an error message via {@link #setError(CharSequence)}, will mean that this layout
@@ -592,53 +603,7 @@ public class TextInputLayout extends LinearLayout {
    * @attr ref android.support.design.R.styleable#TextInputLayout_errorEnabled
    */
   public void setErrorEnabled(boolean enabled) {
-    if (mErrorEnabled != enabled) {
-      if (mErrorView != null) {
-        mErrorView.animate().cancel();
-      }
-
-      if (enabled) {
-        mErrorView = new AppCompatTextView(getContext());
-        mErrorView.setId(R.id.textinput_error);
-        if (mTypeface != null) {
-          mErrorView.setTypeface(mTypeface);
-        }
-        boolean useDefaultColor = false;
-        try {
-          TextViewCompat.setTextAppearance(mErrorView, mErrorTextAppearance);
-
-          if (Build.VERSION.SDK_INT >= 23
-              && mErrorView.getTextColors().getDefaultColor() == Color.MAGENTA) {
-            // Caused by our theme not extending from Theme.Design*. On API 23 and
-            // above, unresolved theme attrs result in MAGENTA rather than an exception.
-            // Flag so that we use a decent default
-            useDefaultColor = true;
-          }
-        } catch (Exception e) {
-          // Caused by our theme not extending from Theme.Design*. Flag so that we use
-          // a decent default
-          useDefaultColor = true;
-        }
-        if (useDefaultColor) {
-          // Probably caused by our theme not extending from Theme.Design*. Instead
-          // we manually set something appropriate
-          TextViewCompat.setTextAppearance(
-              mErrorView, android.support.v7.appcompat.R.style.TextAppearance_AppCompat_Caption);
-          mErrorView.setTextColor(
-              ContextCompat.getColor(getContext(), R.color.design_textinput_error_color_light));
-        }
-        mErrorView.setVisibility(INVISIBLE);
-        ViewCompat.setAccessibilityLiveRegion(
-            mErrorView, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE);
-        addIndicator(mErrorView, 0);
-      } else {
-        mErrorShown = false;
-        updateEditTextBackground();
-        removeIndicator(mErrorView);
-        mErrorView = null;
-      }
-      mErrorEnabled = enabled;
-    }
+    indicatorViewController.setErrorEnabled(enabled);
   }
 
   /**
@@ -647,10 +612,16 @@ public class TextInputLayout extends LinearLayout {
    * @attr ref android.support.design.R.styleable#TextInputLayout_errorTextAppearance
    */
   public void setErrorTextAppearance(@StyleRes int resId) {
-    mErrorTextAppearance = resId;
-    if (mErrorView != null) {
-      TextViewCompat.setTextAppearance(mErrorView, resId);
-    }
+    indicatorViewController.setErrorTextAppearance(resId);
+  }
+
+  /**
+   * Sets the text color and size for the helper text from the specified TextAppearance resource.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_helperTextTextAppearance
+   */
+  public void setHelperTextTextAppearance(@StyleRes int resId) {
+    indicatorViewController.setHelperTextAppearance(resId);
   }
 
   /**
@@ -660,7 +631,54 @@ public class TextInputLayout extends LinearLayout {
    * @see #setErrorEnabled(boolean)
    */
   public boolean isErrorEnabled() {
-    return mErrorEnabled;
+    return indicatorViewController.isErrorEnabled();
+  }
+
+  /**
+   * Whether the helper text functionality is enabled or not in this layout. Enabling this
+   * functionality before setting a helper message via {@link #setHelperText(CharSequence)} will
+   * mean that this layout will not change size when a helper message is displayed.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_helperTextEnabled
+   */
+  public void setHelperTextEnabled(boolean enabled) {
+    indicatorViewController.setHelperTextEnabled(enabled);
+  }
+
+  /**
+   * Sets a helper message that will be displayed below the {@link EditText}. If the {@code helper}
+   * is {@code null}, the helper text functionality will be disabled and the helper message will be
+   * hidden.
+   *
+   * <p>If the helper text functionality has not been enabled via {@link
+   * #setHelperTextEnabled(boolean)}, then it will be automatically enabled if {@code helper} is not
+   * empty.
+   *
+   * @param helperText Helper text to display
+   * @see #getHelperText()
+   */
+  public void setHelperText(@Nullable final CharSequence helperText) {
+    // If helper text is null, disable helper if it's enabled.
+    if (TextUtils.isEmpty(helperText)) {
+      if (isHelperTextEnabled()) {
+        setHelperTextEnabled(false);
+      }
+    } else {
+      if (!isHelperTextEnabled()) {
+        setHelperTextEnabled(true);
+      }
+      indicatorViewController.showHelper(helperText);
+    }
+  }
+
+  /**
+   * Returns whether the helper text functionality is enabled or not in this layout.
+   *
+   * @attr ref android.support.design.R.styleable#TextInputLayout_helperTextEnabled
+   * @see #setHelperTextEnabled(boolean)
+   */
+  public boolean isHelperTextEnabled() {
+    return indicatorViewController.isHelperTextEnabled();
   }
 
   /**
@@ -670,23 +688,12 @@ public class TextInputLayout extends LinearLayout {
    * <p>If the error functionality has not been enabled via {@link #setErrorEnabled(boolean)}, then
    * it will be automatically enabled if {@code error} is not empty.
    *
-   * @param error Error message to display, or null to clear
+   * @param errorText Error message to display, or null to clear
    * @see #getError()
    */
-  public void setError(@Nullable final CharSequence error) {
-    // Only animate if we're enabled, laid out, and we have a different error message
-    setError(
-        error,
-        ViewCompat.isLaidOut(this)
-            && isEnabled()
-            && (mErrorView == null || !TextUtils.equals(mErrorView.getText(), error)));
-  }
-
-  private void setError(@Nullable final CharSequence error, final boolean animate) {
-    mError = error;
-
-    if (!mErrorEnabled) {
-      if (TextUtils.isEmpty(error)) {
+  public void setError(@Nullable final CharSequence errorText) {
+    if (!indicatorViewController.isErrorEnabled()) {
+      if (TextUtils.isEmpty(errorText)) {
         // If error isn't enabled, and the error is empty, just return
         return;
       }
@@ -694,63 +701,11 @@ public class TextInputLayout extends LinearLayout {
       setErrorEnabled(true);
     }
 
-    mErrorShown = !TextUtils.isEmpty(error);
-
-    // Cancel any on-going animation
-    mErrorView.animate().cancel();
-
-    if (mErrorShown) {
-      mErrorView.setText(error);
-      mErrorView.setVisibility(VISIBLE);
-
-      if (animate) {
-        if (mErrorView.getAlpha() == 1f) {
-          // If it's currently 100% show, we'll animate it from 0
-          mErrorView.setAlpha(0f);
-        }
-        mErrorView
-            .animate()
-            .alpha(1f)
-            .setDuration(ANIMATION_DURATION)
-            .setInterpolator(AnimationUtils.LINEAR_OUT_SLOW_IN_INTERPOLATOR)
-            .setListener(
-                new AnimatorListenerAdapter() {
-                  @Override
-                  public void onAnimationStart(Animator animator) {
-                    mErrorView.setVisibility(VISIBLE);
-                  }
-                })
-            .start();
-      } else {
-        // Set alpha to 1f, just in case
-        mErrorView.setAlpha(1f);
-      }
+    if (!TextUtils.isEmpty(errorText)) {
+      indicatorViewController.showError(errorText);
     } else {
-      if (mErrorView.getVisibility() == VISIBLE) {
-        if (animate) {
-          mErrorView
-              .animate()
-              .alpha(0f)
-              .setDuration(ANIMATION_DURATION)
-              .setInterpolator(AnimationUtils.FAST_OUT_LINEAR_IN_INTERPOLATOR)
-              .setListener(
-                  new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animator) {
-                      mErrorView.setText(error);
-                      mErrorView.setVisibility(INVISIBLE);
-                    }
-                  })
-              .start();
-        } else {
-          mErrorView.setText(error);
-          mErrorView.setVisibility(INVISIBLE);
-        }
-      }
+      indicatorViewController.hideError();
     }
-
-    updateEditTextBackground();
-    updateLabelState(animate);
   }
 
   /**
@@ -767,24 +722,15 @@ public class TextInputLayout extends LinearLayout {
           mCounterView.setTypeface(mTypeface);
         }
         mCounterView.setMaxLines(1);
-        try {
-          TextViewCompat.setTextAppearance(mCounterView, mCounterTextAppearance);
-        } catch (Exception e) {
-          // Probably caused by our theme not extending from Theme.Design*. Instead
-          // we manually set something appropriate
-          TextViewCompat.setTextAppearance(
-              mCounterView, android.support.v7.appcompat.R.style.TextAppearance_AppCompat_Caption);
-          mCounterView.setTextColor(
-              ContextCompat.getColor(getContext(), R.color.design_textinput_error_color_light));
-        }
-        addIndicator(mCounterView, -1);
+        setTextAppearanceCompatWithErrorFallback(mCounterView, mCounterTextAppearance);
+        indicatorViewController.addIndicator(mCounterView, COUNTER_INDEX);
         if (mEditText == null) {
           updateCounter(0);
         } else {
           updateCounter(mEditText.getText().length());
         }
       } else {
-        removeIndicator(mCounterView);
+        indicatorViewController.removeIndicator(mCounterView, COUNTER_INDEX);
         mCounterView = null;
       }
       mCounterEnabled = enabled;
@@ -856,7 +802,7 @@ public class TextInputLayout extends LinearLayout {
     } else {
       mCounterOverflowed = length > mCounterMaxLength;
       if (wasCounterOverflowed != mCounterOverflowed) {
-        TextViewCompat.setTextAppearance(
+        setTextAppearanceCompatWithErrorFallback(
             mCounterView,
             mCounterOverflowed ? mCounterOverflowTextAppearance : mCounterTextAppearance);
       }
@@ -869,7 +815,143 @@ public class TextInputLayout extends LinearLayout {
     }
   }
 
-  private void updateEditTextBackground() {
+  void setTextAppearanceCompatWithErrorFallback(TextView textView, @StyleRes int textAppearance) {
+    boolean useDefaultColor = false;
+    try {
+      TextViewCompat.setTextAppearance(textView, textAppearance);
+
+      if (VERSION.SDK_INT >= VERSION_CODES.M
+          && textView.getTextColors().getDefaultColor() == Color.MAGENTA) {
+        // Caused by our theme not extending from Theme.Design*. On API 23 and
+        // above, unresolved theme attrs result in MAGENTA rather than an exception.
+        // Flag so that we use a decent default
+        useDefaultColor = true;
+      }
+    } catch (Exception e) {
+      // Caused by our theme not extending from Theme.Design*. Flag so that we use
+      // a decent default
+      useDefaultColor = true;
+    }
+    if (useDefaultColor) {
+      // Probably caused by our theme not extending from Theme.Design*. Instead
+      // we manually set something appropriate
+      TextViewCompat.setTextAppearance(textView, R.style.TextAppearance_AppCompat_Caption);
+      textView.setTextColor(ContextCompat.getColor(getContext(), R.color.error_color_material));
+    }
+  }
+
+  private void updateTextInputBoxBounds() {
+    if (mBoxBackground == null || mEditText == null || getRight() == 0) {
+      return;
+    }
+
+    mBoxBackground.setBounds(
+        getLeft(), getPaddingTop(), getRight(), mEditText.getBottom() + mBoxPaddingOffsetPx);
+    applyBoxAttributes();
+    updateEditTextBackgroundBounds();
+  }
+
+  private void updateEditTextBackgroundBounds() {
+    Drawable editTextBackground = mEditText.getBackground();
+    if (editTextBackground == null) {
+      return;
+    }
+
+    if (android.support.v7.widget.DrawableUtils.canSafelyMutateDrawable(editTextBackground)) {
+      editTextBackground = editTextBackground.mutate();
+    }
+
+    final Rect editTextBounds = new Rect();
+    ViewGroupUtils.getDescendantRect(this, mEditText, editTextBounds);
+
+    Rect editTextBackgroundBounds = editTextBackground.getBounds();
+    final int left = editTextBackgroundBounds.left - mEditText.getPaddingLeft();
+    final int right = editTextBackgroundBounds.right + mEditText.getPaddingRight();
+    editTextBackground.setBounds(left, editTextBackgroundBounds.top, right, mEditText.getBottom());
+  }
+
+  private void setBoxAttributes() {
+    switch (mBoxBackgroundMode) {
+      case BOX_BACKGROUND_FILLED:
+        mBoxCornerRadius = 0f;
+        mBoxBackgroundColor = mDefaultTextColor;
+        mBoxStrokeWidth = 0;
+        break;
+
+      case BOX_BACKGROUND_OUTLINE:
+        mBoxCornerRadius = 16f;
+        mBoxStrokeColor = mFocusedTextColor;
+        mBoxBackgroundColor = null;
+        mBoxStrokeWidth = 7;
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  private void applyBoxAttributes() {
+    if (mBoxBackground == null) {
+      return;
+    }
+
+    setBoxAttributes();
+
+    if (mEditText != null && mBoxBackgroundMode == BOX_BACKGROUND_OUTLINE) {
+      // Store the EditText's background drawable, in case it needs to be restored later.
+      if (mEditText.getBackground() != null) {
+        mEditTextOriginalDrawable = mEditText.getBackground();
+      }
+      ViewCompat.setBackground(mEditText, null);
+    }
+
+    if (mEditText != null
+        && mBoxBackgroundMode == BOX_BACKGROUND_FILLED
+        && mEditTextOriginalDrawable != null) {
+      // Restore the EditText drawable.
+      ViewCompat.setBackground(mEditText, mEditTextOriginalDrawable);
+    }
+
+    if (mBoxStrokeWidth > -1 && mBoxStrokeColor != null) {
+      setBoxBackgroundStroke(mBoxStrokeWidth, mBoxStrokeColor);
+    }
+
+    if (mBoxCornerRadius > -1) {
+      mBoxBackground.setCornerRadius(mBoxCornerRadius);
+    }
+
+    setBoxBackgroundColor(mBoxBackgroundColor);
+  }
+
+  private void setBoxBackgroundStroke(int boxStrokeWidth, ColorStateList boxStrokeColor) {
+    if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+      mBoxBackground.setStroke(boxStrokeWidth, boxStrokeColor);
+    } else {
+      // Drop to compat, so we have to use a color int instead of a ColorStateList. The drawable's
+      // stroke won't change colors based on the view's state changes.
+      mBoxBackground.setStroke(
+          boxStrokeWidth, boxStrokeColor.getColorForState(getDrawableState(), Color.TRANSPARENT));
+    }
+  }
+
+  private void setBoxBackgroundColor(@Nullable ColorStateList boxBackgroundColor) {
+    if (boxBackgroundColor != null) {
+      if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+        mBoxBackground.setColor(boxBackgroundColor);
+      } else {
+        // Drop to compat, so we have to use a color int instead of a ColorStateList. The drawable's
+        // background won't change colors based on the view's state changes.
+        mBoxBackground.setColor(
+            boxBackgroundColor.getColorForState(getDrawableState(), Color.TRANSPARENT));
+      }
+    } else {
+      // Setting a color for transparent backgrounds to avoid a default black background in pre-17
+      // versions.
+      mBoxBackground.setColor(Color.TRANSPARENT);
+    }
+  }
+
+  void updateEditTextBackground() {
     if (mEditText == null) {
       return;
     }
@@ -885,11 +967,11 @@ public class TextInputLayout extends LinearLayout {
       editTextBackground = editTextBackground.mutate();
     }
 
-    if (mErrorShown && mErrorView != null) {
-      // Set a color filter of the error color
+    if (indicatorViewController.errorShouldBeShown()) {
+      // Set a color filter for the error color
       editTextBackground.setColorFilter(
           AppCompatDrawableManager.getPorterDuffColorFilter(
-              mErrorView.getCurrentTextColor(), PorterDuff.Mode.SRC_IN));
+              indicatorViewController.getErrorViewCurrentTextColor(), PorterDuff.Mode.SRC_IN));
     } else if (mCounterOverflowed && mCounterView != null) {
       // Set a color filter of the counter color
       editTextBackground.setColorFilter(
@@ -917,12 +999,12 @@ public class TextInputLayout extends LinearLayout {
     if (!mHasReconstructedEditTextBackground) {
       // This is gross. There is an issue in the platform which affects container Drawables
       // where the first drawable retrieved from resources will propagate any changes
-      // (like color filter) to all instances from the cache. We'll try to workaround it...
+      // (like color filter) to all instances from the cache. We'll try to work around it...
 
       final Drawable newBg = bg.getConstantState().newDrawable();
 
       if (bg instanceof DrawableContainer) {
-        // If we have a Drawable container, we can try and set it's constant state via
+        // If we have a Drawable container, we can try and set its constant state via
         // reflection from the new Drawable
         mHasReconstructedEditTextBackground =
             DrawableUtils.setContainerConstantState(
@@ -990,7 +1072,7 @@ public class TextInputLayout extends LinearLayout {
   public Parcelable onSaveInstanceState() {
     Parcelable superState = super.onSaveInstanceState();
     SavedState ss = new SavedState(superState);
-    if (mErrorShown) {
+    if (indicatorViewController.errorShouldBeShown()) {
       ss.error = getError();
     }
     return ss;
@@ -1023,7 +1105,21 @@ public class TextInputLayout extends LinearLayout {
    */
   @Nullable
   public CharSequence getError() {
-    return mErrorEnabled ? mError : null;
+    return indicatorViewController.isErrorEnabled() ? indicatorViewController.getErrorText() : null;
+  }
+
+  /**
+   * Returns the helper message that was set to be displayed with {@link
+   * #setHelperText(CharSequence)}, or <code>null</code> if no helper text was set or if helper text
+   * functionality is not enabled.
+   *
+   * @see #setHelperText(CharSequence)
+   */
+  @Nullable
+  public CharSequence getHelperText() {
+    return indicatorViewController.isHelperTextEnabled()
+        ? indicatorViewController.getHelperText()
+        : null;
   }
 
   /**
@@ -1048,10 +1144,14 @@ public class TextInputLayout extends LinearLayout {
 
   @Override
   public void draw(Canvas canvas) {
+    updateTextInputBoxBounds();
     super.draw(canvas);
 
     if (mHintEnabled) {
       mCollapsingTextHelper.draw(canvas);
+    }
+    if (mBoxBackground != null) {
+      mBoxBackground.draw(canvas);
     }
   }
 
@@ -1253,7 +1353,7 @@ public class TextInputLayout extends LinearLayout {
   }
 
   /**
-   * Applies a tint to the the password visibility toggle drawable. Does not modify the current tint
+   * Applies a tint to the password visibility toggle drawable. Does not modify the current tint
    * mode, which is {@link PorterDuff.Mode#SRC_IN} by default.
    *
    * <p>Subsequent calls to {@link #setPasswordVisibilityToggleDrawable(Drawable)} will
@@ -1335,6 +1435,10 @@ public class TextInputLayout extends LinearLayout {
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
     super.onLayout(changed, left, top, right, bottom);
 
+    if (mBoxBackground != null) {
+      updateTextInputBoxBounds();
+    }
+
     if (mHintEnabled && mEditText != null) {
       final Rect rect = mTmpRect;
       ViewGroupUtils.getDescendantRect(this, mEditText, rect);
@@ -1348,7 +1452,7 @@ public class TextInputLayout extends LinearLayout {
           r,
           rect.bottom - mEditText.getCompoundPaddingBottom());
 
-      // Set the collapsed bounds to be the the full height (minus padding) to match the
+      // Set the collapsed bounds to be the full height (minus padding) to match the
       // EditText's editable area
       mCollapsingTextHelper.setCollapsedBounds(
           l, getPaddingTop(), r, bottom - top - getPaddingBottom());
@@ -1389,6 +1493,7 @@ public class TextInputLayout extends LinearLayout {
     updateLabelState(ViewCompat.isLaidOut(this) && isEnabled());
 
     updateEditTextBackground();
+    updateTextInputBoxBounds();
 
     if (mCollapsingTextHelper != null) {
       changed |= mCollapsingTextHelper.setState(state);
@@ -1420,8 +1525,8 @@ public class TextInputLayout extends LinearLayout {
     }
     if (mAnimator == null) {
       mAnimator = new ValueAnimator();
-      mAnimator.setInterpolator(AnimationUtils.LINEAR_INTERPOLATOR);
-      mAnimator.setDuration(ANIMATION_DURATION);
+      mAnimator.setInterpolator(AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR);
+      mAnimator.setDuration(LABEL_SCALE_ANIMATION_DURATION);
       mAnimator.addUpdateListener(
           new ValueAnimator.AnimatorUpdateListener() {
             @Override
@@ -1437,6 +1542,16 @@ public class TextInputLayout extends LinearLayout {
   @VisibleForTesting
   final boolean isHintExpanded() {
     return mHintExpanded;
+  }
+
+  @VisibleForTesting
+  final int getHintCurrentCollapsedTextColor() {
+    return mCollapsingTextHelper.getCurrentCollapsedTextColor();
+  }
+
+  @VisibleForTesting
+  final int getErrorTextCurrentColor() {
+    return indicatorViewController.getErrorViewCurrentTextColor();
   }
 
   private class TextInputAccessibilityDelegate extends AccessibilityDelegateCompat {
@@ -1470,10 +1585,10 @@ public class TextInputLayout extends LinearLayout {
       if (mEditText != null) {
         info.setLabelFor(mEditText);
       }
-      final CharSequence error = mErrorView != null ? mErrorView.getText() : null;
-      if (!TextUtils.isEmpty(error)) {
+
+      if (indicatorViewController.errorIsDisplayed()) {
         info.setContentInvalid(true);
-        info.setError(error);
+        info.setError(indicatorViewController.getErrorText());
       }
     }
   }

@@ -39,6 +39,7 @@ import android.support.annotation.RequiresApi;
 import android.support.annotation.RestrictTo;
 import android.support.annotation.StyleRes;
 import android.support.design.R;
+import android.support.design.animation.AnimationUtils;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v4.view.GravityCompat;
@@ -351,7 +352,7 @@ public class CollapsingToolbarLayout extends FrameLayout {
 
     if (mToolbarId != -1) {
       // If we have an ID set, try and find it and it's direct parent to us
-      mToolbar = (Toolbar) findViewById(mToolbarId);
+      mToolbar = findViewById(mToolbarId);
       if (mToolbar != null) {
         mToolbarDirectChild = findDirectChild(mToolbar);
       }
@@ -1252,6 +1253,8 @@ public class CollapsingToolbarLayout extends FrameLayout {
             break;
           case LayoutParams.COLLAPSE_MODE_PARALLAX:
             offsetHelper.setTopAndBottomOffset(Math.round(-verticalOffset * lp.mParallaxMult));
+            break;
+          default:
             break;
         }
       }

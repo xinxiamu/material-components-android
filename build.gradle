@@ -3,22 +3,26 @@ buildscript {
     jcenter()
   }
   dependencies {
-    classpath 'com.android.tools.build:gradle:2.3.1'
+    classpath 'com.android.tools.build:gradle:2.3.3'
+    classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
   }
 }
 
 allprojects {
   repositories {
     jcenter()
+    maven {
+      url "https://maven.google.com"
+    }
   }
 }
 
 ext {
-  buildToolsVersion = '25.0.2'
-  compileSdkVersion = 25
+  buildToolsVersion = '26.0.0'
+  compileSdkVersion = 26
   minSdkVersion = 14
-  targetSdkVersion = 25
-  supportVersion = '25.3.1-SNAPSHOT'
+  targetSdkVersion = 26
+  supportVersion = '26.1.0'
 
   testRunnerVersion = '0.6-alpha'
   espressoVersion = '2.3-alpha'
@@ -29,6 +33,10 @@ ext {
 
   // Disable pre-dexing when gradle called with -PdisablePreDex;
   preDexLibs = !project.hasProperty('disablePreDex')
+
+  mavenRepoUrl = (project.hasProperty('mavenRepoUrl')
+      ? project.property('mavenRepoUrl') : 'file://localhost/tmp/myRepo/')
+  mdcLibraryVersion = '1.0'
 }
 
 // lint every library
@@ -41,14 +49,44 @@ task clean(type: Delete) {
   delete rootProject.buildDir
 }
 
+def getTransformedProjectPath (projectPath) {
+  def pathComponents = projectPath.tokenize('/')
+  def result = ''
+  def currentPath = ''
+  pathComponents.each { component ->
+    if (currentPath == '') {
+      currentPath += component
+    } else {
+      currentPath += '/' + component
+    }
+    result += ':' +  currentPath
+  }
+  return result
+}
+
+def getArchivesBaseName (name) {
+  if (name == 'lib') {
+    return 'design-core'
+  }
+  def pathComponents = name.tokenize('/')
+  def knownComponents = ['lib', 'src', 'android', 'support',  'design']
+  def firstUnknownComponent = knownComponents.size();
+  for (def i = 0; i < knownComponents.size() && i < pathComponents.size(); i++) {
+    if (pathComponents[i] != knownComponents[i]) {
+      firstUnknownComponent = i;
+      break;
+    }
+  }
+  def result = 'design'
+  for (def i = firstUnknownComponent; i < pathComponents.size(); i++) {
+    result = result + '-' + pathComponents[i];
+  }
+  return result;
+}
+
 subprojects {
   version = rootProject.ext.supportVersion
-  // Set a different group for demos to resolve module name conflicts with other subprojects.
-  if (project.path.startsWith(':demos')) {
-    group = 'io.material.demo'
-  } else {
-    group = 'com.android.support'
-  }
+  group = 'com.android.support'
 
   project.plugins.whenPluginAdded { plugin ->
     def isAndroidLibrary = "com.android.build.gradle.LibraryPlugin".equals(plugin.class.name)

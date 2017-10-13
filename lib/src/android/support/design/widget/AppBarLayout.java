@@ -33,6 +33,7 @@ import android.support.annotation.RequiresApi;
 import android.support.annotation.RestrictTo;
 import android.support.annotation.VisibleForTesting;
 import android.support.design.R;
+import android.support.design.animation.AnimationUtils;
 import android.support.v4.view.AbsSavedState;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.WindowInsetsCompat;
@@ -142,7 +143,7 @@ public class AppBarLayout extends LinearLayout {
   private boolean mCollapsible;
   private boolean mCollapsed;
 
-  private final int[] mTmpStatesArray = new int[2];
+  private int[] mTmpStatesArray;
 
   public AppBarLayout(Context context) {
     this(context, null);
@@ -492,6 +493,12 @@ public class AppBarLayout extends LinearLayout {
 
   @Override
   protected int[] onCreateDrawableState(int extraSpace) {
+    if (mTmpStatesArray == null) {
+      // Note that we can't allocate this at the class level (in declaration) since
+      // some paths in super View constructor are going to call this method before
+      // that
+      mTmpStatesArray = new int[2];
+    }
     final int[] extraStates = mTmpStatesArray;
     final int[] states = super.onCreateDrawableState(extraSpace + extraStates.length);
 

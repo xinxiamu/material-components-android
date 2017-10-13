@@ -17,6 +17,7 @@
 package android.support.design.testapp;
 
 import android.support.annotation.VisibleForTesting;
+import android.support.design.testapp.base.BaseTestActivity;
 import android.support.design.widget.CoordinatorLayout;
 import android.widget.FrameLayout;
 
@@ -32,7 +33,7 @@ public class CoordinatorLayoutActivity extends BaseTestActivity {
 
   @Override
   protected void onContentViewSet() {
-    mContainer = (FrameLayout) findViewById(R.id.container);
-    mCoordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinator);
+    mContainer = findViewById(R.id.container);
+    mCoordinatorLayout = findViewById(R.id.coordinator);
   }
 }

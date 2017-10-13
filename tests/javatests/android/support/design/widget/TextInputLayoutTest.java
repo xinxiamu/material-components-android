@@ -26,6 +26,8 @@ import static android.support.design.testutils.TextInputLayoutActions.setCounter
 import static android.support.design.testutils.TextInputLayoutActions.setError;
 import static android.support.design.testutils.TextInputLayoutActions.setErrorEnabled;
 import static android.support.design.testutils.TextInputLayoutActions.setErrorTextAppearance;
+import static android.support.design.testutils.TextInputLayoutActions.setHelperText;
+import static android.support.design.testutils.TextInputLayoutActions.setHelperTextEnabled;
 import static android.support.design.testutils.TextInputLayoutActions.setPasswordVisibilityToggleEnabled;
 import static android.support.design.testutils.TextInputLayoutActions.setTypeface;
 import static android.support.design.testutils.TextInputLayoutMatchers.hasPasswordToggleContentDescription;
@@ -56,6 +58,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Parcelable;
+import android.support.annotation.ColorInt;
 import android.support.design.testapp.R;
 import android.support.design.testapp.TextInputLayoutActivity;
 import android.support.design.testutils.TestUtils;
@@ -85,6 +88,8 @@ public class TextInputLayoutTest {
 
   private static final String ERROR_MESSAGE_1 = "An error has occured";
   private static final String ERROR_MESSAGE_2 = "Some other error has occured";
+  private static final String HELPER_MESSAGE_1 = "Helpful helper text";
+  private static final String HELPER_MESSAGE_2 = "Some other helper text";
   private static final String INPUT_TEXT = "Random input text";
   private static final Typeface CUSTOM_TYPEFACE = Typeface.SANS_SERIF;
 
@@ -127,6 +132,12 @@ public class TextInputLayoutTest {
   }
 
   @Test
+  public void testSetHelperEnablesHelperIsDisplayed() {
+    onView(withId(R.id.textinput)).perform(setHelperText(HELPER_MESSAGE_1));
+    onView(withText(HELPER_MESSAGE_1)).check(matches(isDisplayed()));
+  }
+
+  @Test
   public void testDisabledErrorIsNotDisplayed() {
     // First show an error, and then disable error functionality
     onView(withId(R.id.textinput))
@@ -135,6 +146,17 @@ public class TextInputLayoutTest {
 
     // Check that the error is no longer there
     onView(withText(ERROR_MESSAGE_1)).check(doesNotExist());
+  }
+
+  @Test
+  public void testDisabledHelperIsNotDisplayed() {
+    // First show a helper, and then disable helper functionality
+    onView(withId(R.id.textinput))
+        .perform(setHelperText(HELPER_MESSAGE_1))
+        .perform(setHelperTextEnabled(false));
+
+    // Check that the helper is no longer there
+    onView(withText(HELPER_MESSAGE_1)).check(doesNotExist());
   }
 
   @Test
@@ -151,12 +173,25 @@ public class TextInputLayoutTest {
   }
 
   @Test
+  public void testSetHelperOnDisabledSetHelperIsDisplayed() {
+    // First show a helper, and then disable helper functionality
+    onView(withId(R.id.textinput))
+        .perform(setHelperText(HELPER_MESSAGE_1))
+        .perform(setHelperTextEnabled(false));
+
+    // Now show a different helper message
+    onView(withId(R.id.textinput)).perform(setHelperText(HELPER_MESSAGE_2));
+    // And check that it is displayed
+    onView(withText(HELPER_MESSAGE_2)).check(matches(isDisplayed()));
+  }
+
+  @Test
   public void testPasswordToggleClick() {
     // Type some text on the EditText
     onView(withId(R.id.textinput_edittext_pwd)).perform(typeText(INPUT_TEXT));
 
     final Activity activity = activityTestRule.getActivity();
-    final EditText textInput = (EditText) activity.findViewById(R.id.textinput_edittext_pwd);
+    final EditText textInput = activity.findViewById(R.id.textinput_edittext_pwd);
 
     // Assert that the password is disguised
     assertNotEquals(INPUT_TEXT, textInput.getLayout().getText().toString());
@@ -171,7 +206,7 @@ public class TextInputLayoutTest {
   @Test
   public void testPasswordToggleDisable() {
     final Activity activity = activityTestRule.getActivity();
-    final EditText textInput = (EditText) activity.findViewById(R.id.textinput_edittext_pwd);
+    final EditText textInput = activity.findViewById(R.id.textinput_edittext_pwd);
 
     // Set some text on the EditText
     onView(withId(R.id.textinput_edittext_pwd)).perform(typeText(INPUT_TEXT));
@@ -190,7 +225,7 @@ public class TextInputLayoutTest {
   @Test
   public void testPasswordToggleDisableWhenVisible() {
     final Activity activity = activityTestRule.getActivity();
-    final EditText textInput = (EditText) activity.findViewById(R.id.textinput_edittext_pwd);
+    final EditText textInput = activity.findViewById(R.id.textinput_edittext_pwd);
 
     // Type some text on the EditText
     onView(withId(R.id.textinput_edittext_pwd)).perform(typeText(INPUT_TEXT));
@@ -238,7 +273,7 @@ public class TextInputLayoutTest {
   @Test
   public void testPasswordToggleIsHiddenAfterReenable() {
     final Activity activity = activityTestRule.getActivity();
-    final EditText textInput = (EditText) activity.findViewById(R.id.textinput_edittext_pwd);
+    final EditText textInput = activity.findViewById(R.id.textinput_edittext_pwd);
 
     // Type some text on the EditText and then click the toggle button
     onView(withId(R.id.textinput_edittext_pwd)).perform(typeText(INPUT_TEXT));
@@ -282,10 +317,10 @@ public class TextInputLayoutTest {
     final Activity activity = activityTestRule.getActivity();
 
     // Set a hint on the TextInputLayout
-    final TextInputLayout layout = (TextInputLayout) activity.findViewById(R.id.textinput);
+    final TextInputLayout layout = activity.findViewById(R.id.textinput);
     layout.setHint(INPUT_TEXT);
 
-    final EditText editText = (EditText) activity.findViewById(R.id.textinput_edittext);
+    final EditText editText = activity.findViewById(R.id.textinput_edittext);
 
     // Now manually pass in a EditorInfo to the EditText and make sure it updates the
     // hintText to our known value
@@ -294,8 +329,6 @@ public class TextInputLayoutTest {
 
     assertEquals(INPUT_TEXT, info.hintText);
   }
-
-  /** Regression test for b/31663756. */
   @UiThreadTest
   @Test
   public void testDrawableStateChanged() {
@@ -356,7 +389,7 @@ public class TextInputLayoutTest {
     editText.setCompoundDrawables(left, top, right, bottom);
 
     // Now add the EditText to a TextInputLayout
-    TextInputLayout til = (TextInputLayout) activity.findViewById(R.id.textinput_noedittext);
+    TextInputLayout til = activity.findViewById(R.id.textinput_noedittext);
     til.addView(editText);
 
     // Finally assert that all of the drawables are untouched
@@ -382,7 +415,7 @@ public class TextInputLayoutTest {
     TextViewCompat.setCompoundDrawablesRelative(editText, start, top, end, bottom);
 
     // Now add the EditText to a TextInputLayout
-    TextInputLayout til = (TextInputLayout) activity.findViewById(R.id.textinput_noedittext);
+    TextInputLayout til = activity.findViewById(R.id.textinput_noedittext);
     til.addView(editText);
 
     // Finally assert that all of the drawables are untouched
@@ -447,6 +480,21 @@ public class TextInputLayoutTest {
   }
 
   @Test
+  public void testHintIsErrorTextColorOnError() {
+    final Activity activity = activityTestRule.getActivity();
+    final TextInputLayout layout = activity.findViewById(R.id.textinput);
+
+    onView(withId(R.id.textinput))
+        .perform(setErrorEnabled(true))
+        .perform(setError(ERROR_MESSAGE_1));
+
+    @ColorInt int hintColor = layout.getHintCurrentCollapsedTextColor();
+    @ColorInt int errorColor = layout.getErrorTextCurrentColor();
+
+    assertEquals(hintColor, errorColor);
+  }
+
+  @Test
   public void testFocusMovesToEditTextWithPasswordEnabled() {
     // Focus the preceding EditText
     onView(withId(R.id.textinput_edittext)).perform(click()).check(matches(hasFocus()));
@@ -460,8 +508,7 @@ public class TextInputLayoutTest {
 
   @Test
   public void testTextSetViaAttributeCollapsedHint() {
-    onView(withId(R.id.textinput_with_text))
-        .check(isHintExpanded(false));
+    onView(withId(R.id.textinput_with_text)).check(isHintExpanded(false));
   }
 
   private static ViewAssertion isHintExpanded(final boolean expanded) {

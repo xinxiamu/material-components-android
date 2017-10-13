@@ -23,18 +23,25 @@ import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.PorterDuff;
+import android.graphics.PorterDuff.Mode;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.os.Parcelable;
 import android.support.annotation.ColorInt;
 import android.support.annotation.DrawableRes;
+import android.support.annotation.IdRes;
 import android.support.annotation.IntDef;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.RestrictTo;
 import android.support.annotation.VisibleForTesting;
 import android.support.design.R;
+import android.support.design.stateful.ExtendableSavedState;
 import android.support.design.widget.FloatingActionButtonImpl.InternalVisibilityChangedListener;
+import android.support.design.widget.expandable.ExpandableTransformationWidget;
+import android.support.design.widget.expandable.ExpandableWidgetHelper;
+import android.support.v4.view.TintableBackgroundView;
 import android.support.v4.view.ViewCompat;
 import android.support.v7.widget.AppCompatImageHelper;
 import android.util.AttributeSet;
@@ -64,9 +71,11 @@ import java.util.List;
  * #setBackgroundTintList(ColorStateList)}.
  */
 @CoordinatorLayout.DefaultBehavior(FloatingActionButton.Behavior.class)
-public class FloatingActionButton extends VisibilityAwareImageButton {
+public class FloatingActionButton extends VisibilityAwareImageButton
+    implements TintableBackgroundView, ExpandableTransformationWidget {
 
   private static final String LOG_TAG = "FloatingActionButton";
+  private static final String EXPANDABLE_WIDGET_HELPER_KEY = "expandableWidgetHelper";
 
   /** Callback to be invoked when the visibility of a FloatingActionButton changes. */
   public abstract static class OnVisibilityChangedListener {
@@ -133,7 +142,8 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
   final Rect mShadowPadding = new Rect();
   private final Rect mTouchArea = new Rect();
 
-  private AppCompatImageHelper mImageHelper;
+  private final AppCompatImageHelper mImageHelper;
+  private final ExpandableWidgetHelper expandableWidgetHelper;
 
   private FloatingActionButtonImpl mImpl;
 
@@ -142,7 +152,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
   }
 
   public FloatingActionButton(Context context, AttributeSet attrs) {
-    this(context, attrs, 0);
+    this(context, attrs, R.attr.floatingActionButtonStyle);
   }
 
   public FloatingActionButton(Context context, AttributeSet attrs, int defStyleAttr) {
@@ -164,19 +174,23 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     mSize = a.getInt(R.styleable.FloatingActionButton_fabSize, SIZE_AUTO);
     mBorderWidth = a.getDimensionPixelSize(R.styleable.FloatingActionButton_borderWidth, 0);
     final float elevation = a.getDimension(R.styleable.FloatingActionButton_elevation, 0f);
+    final float hoveredFocusedTranslationZ =
+        a.getDimension(R.styleable.FloatingActionButton_hoveredFocusedTranslationZ, 0f);
     final float pressedTranslationZ =
         a.getDimension(R.styleable.FloatingActionButton_pressedTranslationZ, 0f);
     mCompatPadding = a.getBoolean(R.styleable.FloatingActionButton_useCompatPadding, false);
+    mMaxImageSize = a.getDimensionPixelSize(R.styleable.FloatingActionButton_maxImageSize, 0);
     a.recycle();
 
     mImageHelper = new AppCompatImageHelper(this);
     mImageHelper.loadFromAttributes(attrs, defStyleAttr);
 
-    mMaxImageSize = (int) getResources().getDimension(R.dimen.design_fab_image_size);
+    expandableWidgetHelper = new ExpandableWidgetHelper(this);
 
     getImpl()
         .setBackgroundDrawable(mBackgroundTint, mBackgroundTintMode, mRippleColor, mBorderWidth);
     getImpl().setElevation(elevation);
+    getImpl().setHoveredFocusedTranslationZ(hoveredFocusedTranslationZ);
     getImpl().setPressedTranslationZ(pressedTranslationZ);
   }
 
@@ -281,6 +295,44 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     }
   }
 
+  /**
+   * Compat method to support {@link TintableBackgroundView}. Use {@link
+   * #setBackgroundTintList(ColorStateList)} directly instead.
+   */
+  @Override
+  public void setSupportBackgroundTintList(@Nullable ColorStateList tint) {
+    setBackgroundTintList(tint);
+  }
+
+  /**
+   * Compat method to support {@link TintableBackgroundView}. Use {@link #getBackgroundTintList()}
+   * directly instead.
+   */
+  @Nullable
+  @Override
+  public ColorStateList getSupportBackgroundTintList() {
+    return getBackgroundTintList();
+  }
+
+  /**
+   * Compat method to support {@link TintableBackgroundView}. Use {@link
+   * #setBackgroundTintMode(Mode)} directly instead.
+   */
+  @Override
+  public void setSupportBackgroundTintMode(@Nullable Mode tintMode) {
+    setBackgroundTintMode(tintMode);
+  }
+
+  /**
+   * Compat method to support {@link TintableBackgroundView}. Use {@link #getBackgroundTintMode()}
+   * directly instead.
+   */
+  @Nullable
+  @Override
+  public Mode getSupportBackgroundTintMode() {
+    return getBackgroundTintMode();
+  }
+
   @Override
   public void setBackgroundDrawable(Drawable background) {
     Log.i(LOG_TAG, "Setting a custom background is not supported.");
@@ -348,6 +400,26 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
 
   void hide(@Nullable OnVisibilityChangedListener listener, boolean fromUser) {
     getImpl().hide(wrapOnVisibilityChangedListener(listener), fromUser);
+  }
+
+  @Override
+  public boolean setExpanded(boolean expanded) {
+    return expandableWidgetHelper.setExpanded(expanded);
+  }
+
+  @Override
+  public boolean isExpanded() {
+    return expandableWidgetHelper.isExpanded();
+  }
+
+  @Override
+  public void setExpandedComponentIdHint(@IdRes int expandedComponentIdHint) {
+    expandableWidgetHelper.setExpandedComponentIdHint(expandedComponentIdHint);
+  }
+
+  @Override
+  public int getExpandedComponentIdHint() {
+    return expandableWidgetHelper.getExpandedComponentIdHint();
   }
 
   /**
@@ -472,6 +544,31 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
     getImpl().jumpDrawableToCurrentState();
   }
 
+  @Override
+  protected Parcelable onSaveInstanceState() {
+    Parcelable superState = super.onSaveInstanceState();
+    ExtendableSavedState state = new ExtendableSavedState(superState);
+
+    state.extendableStates.put(
+        EXPANDABLE_WIDGET_HELPER_KEY, expandableWidgetHelper.onSaveInstanceState());
+
+    return state;
+  }
+
+  @Override
+  protected void onRestoreInstanceState(Parcelable state) {
+    if (!(state instanceof ExtendableSavedState)) {
+      super.onRestoreInstanceState(state);
+      return;
+    }
+
+    ExtendableSavedState ess = (ExtendableSavedState) state;
+    super.onRestoreInstanceState(ess.getSuperState());
+
+    expandableWidgetHelper.onRestoreInstanceState(
+        ess.extendableStates.get(EXPANDABLE_WIDGET_HELPER_KEY));
+  }
+
   /**
    * Return in {@code rect} the bounds of the actual floating action button content in view-local
    * coordinates. This is defined as anything within any visible shadow.
@@ -523,13 +620,11 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
 
   @Override
   public boolean onTouchEvent(MotionEvent ev) {
-    switch (ev.getAction()) {
-      case MotionEvent.ACTION_DOWN:
-        // Skipping the gesture if it doesn't start in in the FAB 'content' area
-        if (getContentRect(mTouchArea) && !mTouchArea.contains((int) ev.getX(), (int) ev.getY())) {
-          return false;
-        }
-        break;
+    if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+      // Skipping the gesture if it doesn't start in the FAB 'content' area
+      if (getContentRect(mTouchArea) && !mTouchArea.contains((int) ev.getX(), (int) ev.getY())) {
+        return false;
+      }
     }
     return super.onTouchEvent(ev);
   }
@@ -793,7 +888,7 @@ public class FloatingActionButton extends VisibilityAwareImageButton {
 
   private FloatingActionButtonImpl createImpl() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      return new FloatingActionButtonLollipop(this, new ShadowDelegateImpl());
+      return new FloatingActionButtonImplLollipop(this, new ShadowDelegateImpl());
     } else {
       return new FloatingActionButtonImpl(this, new ShadowDelegateImpl());
     }

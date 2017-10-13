@@ -21,12 +21,16 @@ android {
     testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
   }
 
-  targetProjectPath ':testing:java:android:support:design:testapp'
+  targetProjectPath getTransformedProjectPath('testing/java/android/support/design/testapp')
   targetVariant 'debug'
 
   sourceSets {
     main.setRoot('./')
     main.java.srcDir 'javatests'
+    main.java.excludes = [
+      '**/backlayer/**',
+      '**/build/**',
+    ]
     main.manifest.srcFile 'javatests/android/support/design/widget/AndroidManifest.xml'
   }
 }

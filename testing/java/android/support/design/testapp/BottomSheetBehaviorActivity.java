@@ -18,6 +18,7 @@ package android.support.design.testapp;
 
 import android.content.Intent;
 import android.support.annotation.VisibleForTesting;
+import android.support.design.testapp.base.BaseTestActivity;
 import android.support.design.widget.BottomSheetBehavior;
 import android.support.design.widget.CoordinatorLayout;
 import android.support.design.widget.FloatingActionButton;
@@ -39,10 +40,10 @@ public class BottomSheetBehaviorActivity extends BaseTestActivity {
 
   @Override
   protected void onContentViewSet() {
-    mCoordinatorLayout = (CoordinatorLayout) findViewById(R.id.coordinator);
-    mBottomSheet = (LinearLayout) findViewById(R.id.bottom_sheet);
+    mCoordinatorLayout = findViewById(R.id.coordinator);
+    mBottomSheet = findViewById(R.id.bottom_sheet);
     mBehavior = BottomSheetBehavior.from(mBottomSheet);
-    mFab = (FloatingActionButton) findViewById(R.id.fab);
+    mFab = findViewById(R.id.fab);
     Intent intent = getIntent();
     if (intent != null) {
       int initialState = intent.getIntExtra(EXTRA_INITIAL_STATE, -1);

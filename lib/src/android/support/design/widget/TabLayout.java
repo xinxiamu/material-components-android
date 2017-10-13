@@ -44,6 +44,7 @@ import android.support.annotation.Nullable;
 import android.support.annotation.RestrictTo;
 import android.support.annotation.StringRes;
 import android.support.design.R;
+import android.support.design.animation.AnimationUtils;
 import android.support.v4.util.Pools;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.view.PagerAdapter;
@@ -263,7 +264,7 @@ public class TabLayout extends HorizontalScrollView {
   private int mContentInsetStart;
 
   int mTabGravity;
-  int mMode;
+  @Mode int mMode;
 
   private OnTabSelectedListener mSelectedListener;
   private final ArrayList<OnTabSelectedListener> mSelectedListeners = new ArrayList<>();
@@ -361,6 +362,7 @@ public class TabLayout extends HorizontalScrollView {
         a.getDimensionPixelSize(R.styleable.TabLayout_tabMaxWidth, INVALID_WIDTH);
     mTabBackgroundResId = a.getResourceId(R.styleable.TabLayout_tabBackground, 0);
     mContentInsetStart = a.getDimensionPixelSize(R.styleable.TabLayout_tabContentStart, 0);
+    //noinspection WrongConstant
     mMode = a.getInt(R.styleable.TabLayout_tabMode, MODE_FIXED);
     mTabGravity = a.getInt(R.styleable.TabLayout_tabGravity, GRAVITY_FILL);
     a.recycle();
@@ -433,10 +435,6 @@ public class TabLayout extends HorizontalScrollView {
     if (updateSelectedText) {
       setSelectedTabView(roundedPosition);
     }
-  }
-
-  private float getScrollPosition() {
-    return mTabStrip.getIndicatorPosition();
   }
 
   /**
@@ -1006,6 +1004,8 @@ public class TabLayout extends HorizontalScrollView {
         break;
       case MeasureSpec.UNSPECIFIED:
         heightMeasureSpec = MeasureSpec.makeMeasureSpec(idealHeight, MeasureSpec.EXACTLY);
+        break;
+      default:
         break;
     }
 
@@ -1586,7 +1586,6 @@ public class TabLayout extends HorizontalScrollView {
 
       // We need to switch the text size based on whether the text is spanning 2 lines or not
       if (mTextView != null) {
-        final Resources res = getResources();
         float textSize = mTabTextSize;
         int maxLines = mDefaultMaxLines;
 
@@ -1661,11 +1660,11 @@ public class TabLayout extends HorizontalScrollView {
           mIconView.setImageDrawable(null);
         }
 
-        mCustomTextView = (TextView) custom.findViewById(android.R.id.text1);
+        mCustomTextView = custom.findViewById(android.R.id.text1);
         if (mCustomTextView != null) {
           mDefaultMaxLines = TextViewCompat.getMaxLines(mCustomTextView);
         }
-        mCustomIconView = (ImageView) custom.findViewById(android.R.id.icon);
+        mCustomIconView = custom.findViewById(android.R.id.icon);
       } else {
         // We do not have a custom view. Remove one if it already exists
         if (mCustomView != null) {
